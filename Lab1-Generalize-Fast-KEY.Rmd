@@ -82,11 +82,11 @@ variable_descriptions <- tribble(
  )
 
 gt(variable_descriptions) %>% 
-    tab_header(title = "Focal Variables - Evaluating Treatment Effects"  # Add a title
-  ) %>%
-  tab_style(style = cell_text(weight = "bold"),
-    locations = cells_column_labels()  # Make header row bold
-  ) 
+    tab_header(
+        title = "Focal Variables - Evaluating Treatment Effects") %>%
+    tab_style(
+      style = cell_text(weight = "bold"),
+      locations = cells_column_labels()) 
 ```
 
 ### Read in the Nansana experiment data (Buntaine et al., 2024)
@@ -119,9 +119,11 @@ OLS estimator (specification):
 
 $$\widehat{waste piles} =\beta_0 + \beta_1(treat) + \epsilon$$
 
-```{r, eval=FALSE}
+```{r}
 
-m1_ols <- 
+m1_ols <- lm(
+    waste_piles ~ treat,
+    data = post_treat_subset)
 
 summ(m1_ols, model.fit = FALSE)
 ```
@@ -170,7 +172,7 @@ check_model(m1_ols,  check = "qq" )
 
 -   Poisson regression explicitly models the outcome as a count variable
 -   Assumes `Y` follows a Poisson distribution with non-negative integers (counts!)
--   Poisson regression makes an additional assumption- that variance (dispersion) is proportional to the mean 
+-   Poisson regression makes an additional assumption- that variance (`dispersion`) is proportional to the mean 
 
     Does the data match the theoretical distribution proposed?
 
@@ -193,15 +195,15 @@ ggplot(post_treat_subset, aes(x = waste_piles)) +
     y = "Density"
   ) +
   theme_minimal()
-
 ```
 
 ### Ok, lets try estimating a Poisson model using `glm()`
-```{r, eval=FALSE}
-m2_poisson <- 
+```{r}
+m2_poisson <- glm(waste_piles ~ treat,
+                  family = poisson(link = "log"),
+                  data = post_treat_subset)
 
 summ(m2_poisson, model.fit = FALSE)
-
 
 ```
 
@@ -220,7 +222,7 @@ check_overdispersion(m2_poisson)
 **Intuition check:** The new estimate values are on a different scale...
 
 -   The coefficients returned by `glm()` are now on the `log scale`
--   Exponentiation of the beta coefficient (`exp(b1)`) is interpreted as the 'percent change' for a one unit increase in the predictor  
+-  Exponentiation of the beta coefficient (`exp(b1)`) is interpreted as the 'percent change' for a one unit increase in the predictor  
 -   Notice in the GLM function we specified the distribution as, `family = poisson(link = "log")`
 -   Alternative specification option- use a simple `log transformation` to get comparable result
 -   Importantly, the `log-OLS` regression model coefficients are intuitive to interpret
@@ -234,12 +236,13 @@ check_overdispersion(m2_poisson)
 -   The `Log-OLS regression` estimator works similarly to Poisson regression but with different assumptions
 -   Instead of modeling the count directly, we transform the outcome variable by taking the *natural log* 
 
-```{r, eval=FALSE}
-m3_log <- 
+```{r}
+m3_log <- lm(
+    log(waste_piles) ~ treat,
+    data = post_treat_subset)
 
 summ(m3_log, model.fit = FALSE)
 ```
-
 
 ### Compare observed data to simulated data based on the fitted model (`m3_log`)
 ```{r}
@@ -261,18 +264,16 @@ export_summs(m1_ols, m2_poisson, m3_log,
              statistics = "none")
 ```
 
-------------------------------------------------------------------------
 
 ### Let's do some quick math to compare treatment effect estimates
 ```{r}
 # Calculate percent change in waste piles in each model:
 
-m1_est_ols = (-24.77/77.91)*100  # % change = -31.8
-m2_est_poi = (exp(-.38) -1)*100  # % change = -31.6
-m3_est_log = (-0.42)*100         # % change = -42
+m1_change = (-24.77/77.91)*100  ## % change = -31.8
+m2_change = (exp(-.38) -1)*100  ## % change = -31.6
+m3_change = (-0.42)*100         ## % change = -42
 
 ```
-
 ------------------------------------------------------------------------
 
 ### Analysis check-in: 
@@ -317,12 +318,12 @@ post_treat_subset %>%
 -   It's **always** important to check for balance on pre-treatment baseline characteristics (to check if randomization worked)
 -   Luckily, we can `control away` known sources of selection bias by adding `pre_count_avg` to the OLS model
 
-```{r, eval=FALSE}
+```{r}
 
 m4_control <- lm(
     log(waste_piles) ~ 
-        treat + 
-        , ## Add control
+        treat +
+        log(pre_count_avg), ## Add a control
     data = post_treat_subset)
 
 summ(m4_control, model.fit = FALSE)
@@ -335,7 +336,7 @@ summ(m4_control, model.fit = FALSE)
 
 ------------------------------------------------------------------------
 
-**No!** We should account for events that might also affect trash burning during the treatment period
+**No!**  We should account for events that might also affect trash burning during the treatment period
 
     I.e., Anything else that might affect the number of trash piles burned (besides our treatment)
 
@@ -358,20 +359,21 @@ post_treat_subset %>%
 ```
 
 ### Add controls for rain events during the competition period
-```{r, eval=FALSE}
+```{r}
 m5_control2 <- lm(
     log(waste_piles) ~ 
         treat +
-        log(pre_count_avg) + 
-        , ## Add control
+        log(pre_count_avg) +
+        rain_0_48hrs + rain_49_168hrs,
     data = post_treat_subset)
 
 summ(m5_control2,
-     model.fit = FALSE, )  ## Add heteroskedasticity robust standard error adj.
+     model.fit = FALSE,
+     robust = "HC2")  # Heteroskedasticity robust standard error adj.
 ```
 
 ### Comparing models after adding controls
-```{r, eval=FALSE}
+```{r}
 export_summs(m4_control, m5_control2, robust = "HC2",
              model.names = c("M4 - Pre-treat","M5 - Add Rain"),
              statistics = "none")
@@ -390,7 +392,7 @@ export_summs(m4_control, m5_control2, robust = "HC2",
 
 ------------------------------------------------------------------------
 
-```{r, eval=FALSE}
+```{r}
 
 m6_clust <- lm(
     log(waste_piles) ~ 
@@ -400,12 +402,11 @@ m6_clust <- lm(
     data = post_treat_subset)
 
 summ(m6_clust,
-     robust = "HC2", # Add SE based on pair-clusters
+     robust = "HC2",
+     cluster = "pair_id", # Add SE adj. based on pair-clusters
      model.fit = FALSE)
 
 ```
-
-
 ------------------------------------------------------------------------
 
 **Key takeaways:**
@@ -414,7 +415,7 @@ summ(m6_clust,
 -   **NOTE**: That the standard error (`SE`) is slightly more `conservative` (i.e., the SE increased)
 -   After accounting for dependencies by pair clusters the `SE` increased by .01 
 -   However, our interpretation of the treatment effect remains unchanged 
--   The treatment was found to reduce waste pile burning by 27% (`p<.001`).
+-   The treatment was found to reduce waste pile burning by 27% (`p<.001`)
 
     Model `M6` replicates the treatment effect reported in Buntaine et al., 2024 (see Figure 2; T+6)
     
