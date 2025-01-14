@@ -117,7 +117,7 @@ Review of regression: Ordinary Least Squares (OLS)
 
 OLS estimator (specification):
 
-$$\widehat{waste piles} =\beta_0 + \beta_1(treat) + \epsilon$$
+$$waste\ piles =\beta_0 + \beta_1(treat) + \epsilon$$
 
 ```{r, eval=FALSE}
 
@@ -264,12 +264,15 @@ export_summs(m1_ols, m2_poisson, m3_log,
 ------------------------------------------------------------------------
 
 ### Let's do some quick math to compare treatment effect estimates
+
+$$\% \Delta Y = \left( e^{\beta_1} - 1 \right) \times 100$$
+
 ```{r}
 # Calculate percent change in waste piles in each model:
 
-m1_est_ols = (-24.77/77.91)*100  # % change = -31.8
-m2_est_poi = (exp(-.38) -1)*100  # % change = -31.6
-m3_est_log = (-0.42)*100         # % change = -42
+m1_change = (-24.77/77.91)*100   ## % change OLS = -31.8
+m2_change = (exp(-.38) - 1)*100  ## % change POIS = -31.6
+m3_change = (exp(-0.42) - 1)*100 ## % change LOG-OLS = -34.3
 
 ```
 
@@ -281,7 +284,7 @@ m3_est_log = (-0.42)*100         # % change = -42
 
 **The treatment estimate for log-OLS can be interpret as follows:**
 
-> *The model estimated that the treatment group had a 42% reduction in waste piles relative to the control group.*
+> *The model estimated that the treatment group had a 34% reduction in waste piles relative to the control group.*
 
 -   This estimate, however, is still not a robust causal effect (the OLS estimator is still a bit naive)
 -   Any ideas why this might be? - Discuss with you neighbor (Think. Pair. Share.)
@@ -403,6 +406,7 @@ summ(m6_clust,
      robust = "HC2", # Add SE based on pair-clusters
      model.fit = FALSE)
 
+# m6_change = (exp(-0.27) - 1)*100 ## % change = -23.7
 ```
 
 
@@ -414,7 +418,7 @@ summ(m6_clust,
 -   **NOTE**: That the standard error (`SE`) is slightly more `conservative` (i.e., the SE increased)
 -   After accounting for dependencies by pair clusters the `SE` increased by .01 
 -   However, our interpretation of the treatment effect remains unchanged 
--   The treatment was found to reduce waste pile burning by 27% (`p<.001`).
+-   The treatment was found to reduce waste pile burning by 24% (`p<.001`)
 
     Model `M6` replicates the treatment effect reported in Buntaine et al., 2024 (see Figure 2; T+6)
     
